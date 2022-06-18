@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.backend_bases import MouseButton
 from matplotlib.widgets  import RectangleSelector
+import matplotlib as mpl
+mpl.rcParams['keymap.save'].remove('s')
+mpl.rcParams['keymap.fullscreen'].remove('f')
 
 if __name__ == "__main__":
     # Settings
@@ -31,6 +34,7 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(figsize=(10, 6)) 
 
     mark = ax.scatter([], [],c="white",s=5)
+    line_fitting = ax.scatter([], [], edgecolors="yellow",s=10, facecolors='none')
     ax.imshow(s.z, origin="lower", aspect="auto", interpolation="None",
               vmin=vmin, vmax=vmax,
               extent=[tmin, tmax, fmin, fmax])
@@ -65,9 +69,17 @@ if __name__ == "__main__":
 
     def handle(key, x, y):
         print(f"pressed {key} over x={x} y={y}")
-        sys.stdout.flush()
         if key == "d":
             selector.active = True
+        elif key == "s":
+            point = (x, y)
+            add_point(line_fitting, point)
+        elif key == "f":
+            print("performing fitting on")
+            print(line_fitting.get_offsets())
+
+        sys.stdout.flush()
+
             
     def on_press(event):
         handle(event.key, event.xdata, event.ydata)
