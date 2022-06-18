@@ -63,6 +63,7 @@ if __name__ == "__main__":
     
     def add_point(scatter, point):
         array = scatter.get_offsets()
+        print(array)
         array = np.vstack([array, point])
         scatter.set_offsets(array)
         fig.canvas.draw()
@@ -77,6 +78,11 @@ if __name__ == "__main__":
         elif key == "f":
             print("performing fitting on")
             print(line_fitting.get_offsets())
+        elif key == "r":
+            print("performing reset")
+            mark.set_offsets(np.empty((0, 2), float))
+            line_fitting.set_offsets(np.empty((0, 2), float))
+            fig.canvas.draw()
 
         sys.stdout.flush()
 
