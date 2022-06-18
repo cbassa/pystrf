@@ -3,6 +3,8 @@ import numpy as np
 from strf.rfio import Spectrogram
 
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
 
 if __name__ == "__main__":
     # Settings
@@ -17,8 +19,25 @@ if __name__ == "__main__":
     # Create plot
     vmin, vmax = np.percentile(s.z, (5, 99.95))
 
-    fig, ax = plt.subplots()
-    ax.imshow(s.z, origin="lower", aspect="auto", interpolation="None",
-              vmin=vmin, vmax=vmax)
+    # Time limits
+    tmin, tmax = mdates.date2num(s.t[0]), mdates.date2num(s.t[-1])
 
+    # Frequency limits
+    fcen = np.mean(s.freq)
+    fmin, fmax = (s.freq[0] - fcen) * 1e-6, (s.freq[-1] - fcen) * 1e-6
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.imshow(s.z, origin="lower", aspect="auto", interpolation="None",
+              vmin=vmin, vmax=vmax,
+              extent=[tmin, tmax, fmin, fmax])
+
+    ax.xaxis_date()
+    date_format = mdates.DateFormatter("%F\n%H:%M:%S")
+    ax.xaxis.set_major_formatter(date_format)
+    fig.autofmt_xdate(rotation=0, ha="center")
+
+    ax.set_xlabel("Time (UTC)")
+    ax.set_ylabel(f"Frequency (MHz) - {fcen * 1e-6:g} MHz")
+
+    
     plt.show()
