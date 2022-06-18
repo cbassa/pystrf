@@ -5,10 +5,16 @@ from strf.rfio import Spectrogram
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib.backend_bases import MouseButton
 
 def on_press(event):
     handle(event.key, event.xdata, event.ydata)
     sys.stdout.flush()
+
+def on_click(event):
+    if event.button is MouseButton.MIDDLE:
+        handle("MIDDLE", event.xdata, event.ydata)
+        sys.stdout.flush()
 
 def handle(key, x, y):
     print(f"pressed {key} over x={x} y={y}")
@@ -49,4 +55,5 @@ if __name__ == "__main__":
 
     
     fig.canvas.mpl_connect('key_press_event', on_press)
+    fig.canvas.mpl_connect('button_press_event', on_click)
     plt.show()
