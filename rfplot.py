@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
+import sys
 import numpy as np
 from strf.rfio import Spectrogram
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
+def on_press(event):
+    handle(event.key, event.xdata, event.ydata)
+    sys.stdout.flush()
+
+def handle(key, x, y):
+    print(f"pressed {key} over x={x} y={y}")
+    sys.stdout.flush()
 
 if __name__ == "__main__":
     # Settings
     path = "data"
-    prefix = "2021-08-04T20:48:35"
+    prefix = "2021-08-04T20_48_35"
     ifile = 50
     nsub = 1800
 
@@ -40,4 +48,5 @@ if __name__ == "__main__":
     ax.set_ylabel(f"Frequency (MHz) - {fcen * 1e-6:g} MHz")
 
     
+    fig.canvas.mpl_connect('key_press_event', on_press)
     plt.show()
