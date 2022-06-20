@@ -10,19 +10,21 @@ from matplotlib.backend_bases import MouseButton
 from matplotlib.widgets  import RectangleSelector
 import matplotlib as mpl
 import imageio
+
 from skimage.morphology import binary_dilation, remove_small_objects
 from skimage.filters import gaussian
 from modest import imshow
 
 mpl.rcParams['keymap.save'].remove('s')
 mpl.rcParams['keymap.fullscreen'].remove('f')
+mpl.rcParams['backend'] = "TkAgg"
 
 if __name__ == "__main__":
     # Settings
-    path = "D:\\New folder\\2022-06-13T22%3A56%3A48+02%3A00_401000000"
-    prefix = "2022-06-13T20%3A56%3A48"
-    ifile = 0
-    nsub = 3600*12
+    path = "data"
+    prefix = "2021-08-04T20_48_35"
+    ifile = 50
+    nsub = 1800
 
     # Read spectrogram
     s = Spectrogram(path, prefix, ifile, nsub, 4171)
@@ -38,7 +40,6 @@ if __name__ == "__main__":
     fmin, fmax = (s.freq[0] - fcen) * 1e-6, (s.freq[-1] - fcen) * 1e-6
     
     fig, ax = plt.subplots(figsize=(10, 6)) 
-    print("hey")
     mark = ax.scatter([], [],c="white",s=5)
     line_fitting = ax.scatter([], [], edgecolors="yellow",s=10, facecolors='none')
     # imshow(ax, s.z,  vmin=vmin, vmax=vmax)
