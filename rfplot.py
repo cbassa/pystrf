@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import numpy as np
+import numpy.ma as ma
 from strf.rfio import Spectrogram
 
 import matplotlib.pyplot as plt
@@ -8,19 +9,20 @@ import matplotlib.dates as mdates
 from matplotlib.backend_bases import MouseButton
 from matplotlib.widgets  import RectangleSelector
 import matplotlib as mpl
-from astropy.visualization import (ZScaleInterval,  ImageNormalize,SqrtStretch)
 import imageio
 from skimage.morphology import binary_dilation, remove_small_objects
+from skimage.filters import gaussian
+from modest import imshow
 
 mpl.rcParams['keymap.save'].remove('s')
 mpl.rcParams['keymap.fullscreen'].remove('f')
 
 if __name__ == "__main__":
     # Settings
-    path = "data"
-    prefix = "2021-08-04T20_48_35"
-    ifile = 50
-    nsub = 1800
+    path = "D:\\New folder\\2022-06-13T22%3A56%3A48+02%3A00_401000000"
+    prefix = "2022-06-13T20%3A56%3A48"
+    ifile = 0
+    nsub = 3600*12
 
     # Read spectrogram
     s = Spectrogram(path, prefix, ifile, nsub, 4171)
@@ -36,59 +38,52 @@ if __name__ == "__main__":
     fmin, fmax = (s.freq[0] - fcen) * 1e-6, (s.freq[-1] - fcen) * 1e-6
     
     fig, ax = plt.subplots(figsize=(10, 6)) 
-
+    print("hey")
     mark = ax.scatter([], [],c="white",s=5)
     line_fitting = ax.scatter([], [], edgecolors="yellow",s=10, facecolors='none')
-    ax.imshow(s.z, origin="lower", aspect="auto", interpolation="None",
+    # imshow(ax, s.z,  vmin=vmin, vmax=vmax)
+    imshow(ax, s.z, origin="lower", aspect="auto", interpolation="None",
               vmin=vmin, vmax=vmax,
               extent=[tmin, tmax, fmin, fmax])
 
+    mode = {
+        "current_mode" : None
+    }
     def line_select_callback(eclick, erelease):
         x1, y1 = eclick.xdata, eclick.ydata
         x2, y2 = erelease.xdata, erelease.ydata
+        if mode["current_mode"] =="fit":
+            t1_ind = round(len(s.t) * (x1 - tmin) / (tmax - tmin))
+            t2_ind = round(len(s.t) * (x2 - tmin) / (tmax - tmin))
+            f1_ind = round(len(s.freq) * (y1 - fmin) / (fmax - fmin))
+            f2_ind = round(len(s.freq) * (y2 - fmin) / (fmax - fmin))
+            
+            
+            submat = gaussian(s.z[f1_ind:f2_ind,t1_ind:t2_ind])
+            data = submat - np.mean(submat, axis=0)
+            mask = data > 3 * np.std(data, axis=0)
 
-        t1_ind = round(len(s.t) * (x1 - tmin) / (tmax - tmin))
-        t2_ind = round(len(s.t) * (x2 - tmin) / (tmax - tmin))
-        f1_ind = round(len(s.freq) * (y1 - fmin) / (fmax - fmin))
-        f2_ind = round(len(s.freq) * (y2 - fmin) / (fmax - fmin))
-        
-        
-        submat = s.z[f1_ind:f2_ind,t1_ind:t2_ind]
-        
-        signal = submat - np.median(submat, axis=0)
-        background = np.copy(signal)
-        filter = np.ones(50)/50
-        for i in range(signal.shape[1]):
-            background[:,i] = np.convolve(signal[:,i], filter, mode="same")
+            data1 = ma.array(submat, mask=mask)
+            data1 -= ma.mean(data1)
+            mask = data1 > 3 * ma.std(data1, axis=0)
+            mask = binary_dilation(mask,np.ones((7,1)))
+            mask = np.flipud(remove_small_objects(mask, 50))
+            imageio.imwrite(f'test3.png', 255 * mask.astype(np.uint8))
 
-        sig_without_background = signal - background
-        mask = sig_without_background > 3 * np.std(sig_without_background, axis=0)
-        sig_without_background[mask] = background[mask]
-        sig_without_background[np.logical_not(mask)] = signal[np.logical_not(mask)]
+            print(s.z[f1_ind:f2_ind,t1_ind:t2_ind].shape)
+        elif mode["current_mode"] == "delete":
+            array = mark.get_offsets()
+            maskx = np.logical_and(array[:,0] >= min(x1,x2),  array[:,0] <= max(x1,x2))
+            masky = np.logical_and(array[:,1] >= min(y1,y2),  array[:,1] <= max(y1,y2))
+            mask = np.logical_and(maskx, masky)
+            mark.set_offsets(array[np.logical_not(mask),:])
 
-        for i in range(signal.shape[1]):
-            background[:,i] = np.convolve(sig_without_background[:,i], filter, mode="same")
-
-        sig_without_background = signal - background
-        mask = (sig_without_background > 3 * np.std(sig_without_background, axis=0)).astype(np.uint8)
-        mask = binary_dilation(mask)  
-        remove_small_objects(mask, min_size=16, in_place=True)
-        mask = np.flipud(mask)
-
-        imageio.imwrite(f'test3.png', 255 * mask)
-
-        print(s.z[f1_ind:f2_ind,t1_ind:t2_ind].shape)
-        # array = mark.get_offsets()
-        # maskx = np.logical_and(array[:,0] >= min(x1,x2),  array[:,0] <= max(x1,x2))
-        # masky = np.logical_and(array[:,1] >= min(y1,y2),  array[:,1] <= max(y1,y2))
-        # mask = np.logical_and(maskx, masky)
-        # mark.set_offsets(array[np.logical_not(mask),:])
         fig.canvas.draw()
         print(f"select over {x1},{y1},{x2},{y2}")
 
     selector = RectangleSelector(ax, line_select_callback, useblit=True, button=[1], minspanx=5, minspany=5, spancoords='pixels',props={'edgecolor':'white', 'fill': False})
     selector.active = False
-   
+
     ax.xaxis_date()
     date_format = mdates.DateFormatter("%F\n%H:%M:%S")
     ax.xaxis.set_major_formatter(date_format)
@@ -108,14 +103,19 @@ if __name__ == "__main__":
         print(f"pressed {key} over x={x} y={y}")
         if key == "d":
             selector.active = True
+            mode["current_mode"] = "delete"
         elif key == "s":
             point = (x, y)
             add_point(line_fitting, point)
         elif key == "f":
             print("performing fitting on")
+            mode["current_mode"] = "fit"
+            selector.active = True
             print(line_fitting.get_offsets())
         elif key == "r":
             print("performing reset")
+            mode["current_mode"] = None
+            selector.active = False
             mark.set_offsets(np.empty((0, 2), float))
             line_fitting.set_offsets(np.empty((0, 2), float))
             fig.canvas.draw()
