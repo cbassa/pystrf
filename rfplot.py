@@ -4,7 +4,7 @@ import argparse
 import os 
 
 import numpy as np
-from strf.rfio import Spectrogram, get_site_info
+from strf.rfio import Spectrogram, get_site_info, get_frequency_info
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -25,6 +25,7 @@ if __name__ == "__main__":
     parser.add_argument('-s', type=int, default=0,  help='Number of starting subintegration')
     parser.add_argument('-l', type=int, default=3600,  help='Number of subintegrations to plot')
     parser.add_argument('-C', type=int,  help='Site ID', default=4171)
+    parser.add_argument('-F', help='List with frequencies')
     
     args = parser.parse_args()
 
@@ -41,7 +42,12 @@ if __name__ == "__main__":
     if site is None:
         print(f"Site with no: {args.C} does not exist")
         sys.exit(1)
-        
+    
+    if args.F is not None:
+        freq_fname = args.F
+    else:
+        freq_fname = os.path.join(os.environ["ST_DATADIR"], "data", "frequencies.txt") 
+    
     # Read spectrogram
     s = Spectrogram(args.p, args.P, args.s, args.l, args.C)
 
@@ -54,7 +60,15 @@ if __name__ == "__main__":
     # Frequency limits
     fcen = np.mean(s.freq)
     fmin, fmax = (s.freq[0] - fcen) * 1e-6, (s.freq[-1] - fcen) * 1e-6
+
+    frequencies = []
+    if not os.path.exists(freq_fname):
+        print(f"warning: Frequencies file not available under {freq_fname}")
+    else:
+        frequencies = get_frequency_info(freq_fname, fcen, s.freq[0], s.freq[-1])
     
+    print(f"Found {len(frequencies)} matching frequencies")
+
     fig, ax = plt.subplots(figsize=(10, 6)) 
     mark = ax.scatter([], [],c="white",s=5)
     line_fitting = ax.scatter([], [], edgecolors="yellow",s=10, facecolors='none')
