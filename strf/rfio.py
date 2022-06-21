@@ -64,3 +64,30 @@ def parse_header(header_b):
             'nchan': int(match.group(5)),
             'nsub': int(match.group(6))}
     
+
+def get_site_info(fname, site_id):
+    with open(fname, "r") as fp:
+        lines = fp.readlines()
+
+    sites = []
+    for line in lines:
+        if "#" in line:
+            continue
+        parts = line.split()
+        try:
+            site = {"no": int(parts[0]),
+                    "lat": float(parts[2]),
+                    "lon": float(parts[3]),
+                    "height": float(parts[4]),
+                    "observer": " ".join(parts[5:])}
+        except:
+            print(f"Failed to read site {line}")
+
+        sites.append(site)
+
+    for site in sites:
+        if site["no"] == site_id:
+            return site
+
+    return None
+        

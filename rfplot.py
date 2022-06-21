@@ -4,8 +4,7 @@ import argparse
 import os 
 
 import numpy as np
-import pandas as pd
-from strf.rfio import Spectrogram
+from strf.rfio import Spectrogram, get_site_info
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -25,7 +24,7 @@ if __name__ == "__main__":
     parser.add_argument('-P', help='Filename prefix c in c_??????.bin')
     parser.add_argument('-s', type=int, default=0,  help='Number of starting subintegration')
     parser.add_argument('-l', type=int, default=3600,  help='Number of subintegrations to plot')
-    parser.add_argument('-C', type=int,  help='Site ID')
+    parser.add_argument('-C', type=int,  help='Site ID', default=4171)
     
     args = parser.parse_args()
 
@@ -33,21 +32,16 @@ if __name__ == "__main__":
         print("ST_DATADIR variable not found")
         sys.exit(1)
 
-    sites = os.path.join(os.environ["ST_DATADIR"], "data", "sites.txt") 
-    if not os.path.exists(sites):
-        print(f"Sites file not available under {sites}")
+    site_fname = os.path.join(os.environ["ST_DATADIR"], "data", "sites.txt") 
+    if not os.path.exists(site_fname):
+        print(f"Sites file not available under {site_fname}")
         sys.exit(1)
 
-    sites_df = pd.read_fwf(sites,colspecs=[(0,4), (5,7), (8,18), (18,30), (30,38), (38,100)])
-    matching_site = sites_df[sites_df["# No"] == args.C]
-    if len(matching_site) == 0:
+    site = get_site_info(site_fname, args.C)
+    if site is None:
         print(f"Site with no: {args.C} does not exist")
         sys.exit(1)
-
-    print("Selected site:")
-    matching_site = matching_site.to_dict(orient='records')[0]
-    print(matching_site)
-    
+        
     # Read spectrogram
     s = Spectrogram(args.p, args.P, args.s, args.l, args.C)
 
