@@ -95,7 +95,7 @@ if __name__ == "__main__":
     timestamps = [ x.replace(tzinfo=utc) for x in  s.t]
     for sat_info in satellite_info:
         satellite = EarthSatellite(sat_info["tle"][-2], sat_info["tle"][-1])
-        t, events = satellite.find_events(site_location, t0, t1, altitude_degrees=10.0)
+        t, events = satellite.find_events(site_location, t0, t1, altitude_degrees=0.0)
         if len(t) > 0:
             pairs = [ (ti, event)  for ti, event in zip(t, events)]
             if pairs[0][1] in [1,2]:
@@ -117,7 +117,7 @@ if __name__ == "__main__":
                 for freq in sat_info["frequencies"]:
                     freq1 =  (freq -  fcen * 1e-6)
                     dfreq = freq1 - range_rate.km_per_s / C * freq # MHz
-                    ax.plot([mdates.date2num(x) for x in selected_timestamps], dfreq)
+                    ax.plot([mdates.date2num(x) for x in selected_timestamps], dfreq,c="lime")
 
     image = imshow(ax, s.z, origin="lower", aspect="auto", interpolation="None",
               vmin=vmin, vmax=vmax,
