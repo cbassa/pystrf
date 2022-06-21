@@ -43,13 +43,16 @@ if __name__ == "__main__":
     mark = ax.scatter([], [],c="white",s=5)
     line_fitting = ax.scatter([], [], edgecolors="yellow",s=10, facecolors='none')
     # imshow(ax, s.z,  vmin=vmin, vmax=vmax)
-    imshow(ax, s.z, origin="lower", aspect="auto", interpolation="None",
+    image = imshow(ax, s.z, origin="lower", aspect="auto", interpolation="None",
               vmin=vmin, vmax=vmax,
               extent=[tmin, tmax, fmin, fmax])
 
     mode = {
-        "current_mode" : None
+        "current_mode" : None,
+        "vmin" : vmin,
+        "vmax" : vmax
     }
+
     def line_select_callback(eclick, erelease):
         x1, y1 = eclick.xdata, eclick.ydata
         x2, y2 = erelease.xdata, erelease.ydata
@@ -108,6 +111,14 @@ if __name__ == "__main__":
             selector.active = False
             mark.set_offsets(np.empty((0, 2), float))
             line_fitting.set_offsets(np.empty((0, 2), float))
+            fig.canvas.draw()
+        elif key == "b":
+            mode["vmax"] *= 0.95
+            image.set_clim(mode["vmin"],mode["vmax"])
+            fig.canvas.draw()
+        elif key == "v":
+            mode["vmax"] *= 1.05
+            image.set_clim(mode["vmin"],mode["vmax"])
             fig.canvas.draw()
 
         sys.stdout.flush()
