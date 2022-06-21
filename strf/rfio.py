@@ -91,3 +91,24 @@ def get_site_info(fname, site_id):
 
     return None
         
+def get_frequency_info(fname, fcen, fmin, fmax):
+    with open(fname, "r") as fp:
+        lines = fp.readlines()
+    C = 299792.458 # km/s
+    padding = fcen * 20 / C # padding in MHz
+    fmin_padding,fmax_padding = (fmin - padding) * 1e-6, (fmax + padding) * 1e-6
+
+    frequencies = []
+    for line in lines:
+        if "#" in line:
+            continue
+        parts = line.split()
+        try:
+            freq = { "norad": int(parts[0]), "freq": float(parts[1])}
+        except:
+            print(f"Failed to read frequency {line}")
+        
+        if freq["freq"] >= fmin_padding and freq["freq"] <= fmax_padding:
+            frequencies.append(freq)
+    
+    return frequencies
