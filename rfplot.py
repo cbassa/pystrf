@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import sys
 import argparse
+import os 
 
 import numpy as np
+import pandas as pd
 from strf.rfio import Spectrogram
 
 import matplotlib.pyplot as plt
@@ -26,6 +28,26 @@ if __name__ == "__main__":
     parser.add_argument('-C', type=int,  help='Site ID')
     
     args = parser.parse_args()
+
+    if "ST_DATADIR" not in os.environ:
+        print("ST_DATADIR variable not found")
+        sys.exit(1)
+
+    sites = os.path.join(os.environ["ST_DATADIR"], "data", "sites.txt") 
+    if not os.path.exists(sites):
+        print(f"Sites file not available under {sites}")
+        sys.exit(1)
+
+    sites_df = pd.read_fwf(sites,colspecs=[(0,4), (5,7), (8,18), (18,30), (30,38), (38,100)])
+    matching_site = sites_df[sites_df["# No"] == args.C]
+    if len(matching_site) == 0:
+        print(f"Site with no: {args.C} does not exist")
+        sys.exit(1)
+
+    print("Selected site:")
+    matching_site = matching_site.to_dict(orient='records')[0]
+    print(matching_site)
+    
     # Read spectrogram
     s = Spectrogram(args.p, args.P, args.s, args.l, args.C)
 
