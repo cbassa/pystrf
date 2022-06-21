@@ -92,7 +92,7 @@ if __name__ == "__main__":
     mark = ax.scatter([], [],c="white",s=5)
     line_fitting = ax.scatter([], [], edgecolors="yellow",s=10, facecolors='none')
     # imshow(ax, s.z,  vmin=vmin, vmax=vmax)
-
+    timestamps = [ x.replace(tzinfo=utc) for x in  s.t]
     for sat_info in satellite_info:
         satellite = EarthSatellite(sat_info["tle"][-2], sat_info["tle"][-1])
         t, events = satellite.find_events(site_location, t0, t1, altitude_degrees=10.0)
@@ -106,13 +106,18 @@ if __name__ == "__main__":
 
             pairs = [ (ti, event)  for ti, event in pairs if event != 1 ] # remove culminations
 
-            sat_info["timeslot"] = [ (pairs[i][0], pairs[i+1][0]) for i in range(0, len(pairs), 2)]
+            sat_info["timeslot"] = [ (pairs[i][0].utc_datetime(), pairs[i+1][0].utc_datetime()) for i in range(0, len(pairs), 2)]
 
             for timeslot in sat_info["timeslot"]:
+                selected_timestamps = [ x for x in timestamps if x >= timeslot[0] and x <= timeslot[1]]
+                pos = (satellite - site_location).at(ts.utc(selected_timestamps))
+                _, _, _, _, _, range_rate = pos.frame_latlon_and_rates(site_location)
+                C = 299792.458 # km/s
+
                 for freq in sat_info["frequencies"]:
-                    t = [mdates.date2num(x.utc_datetime()) for x in timeslot]
                     freq1 =  (freq -  fcen * 1e-6)
-                    ax.plot(t, [freq1, freq1])
+                    dfreq = freq1 - range_rate.km_per_s / C * freq # MHz
+                    ax.plot([mdates.date2num(x) for x in selected_timestamps], dfreq)
 
     image = imshow(ax, s.z, origin="lower", aspect="auto", interpolation="None",
               vmin=vmin, vmax=vmax,
