@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import sys
+import argparse
+
 import numpy as np
-import numpy.ma as ma
 from strf.rfio import Spectrogram
 
 import matplotlib.pyplot as plt
@@ -9,25 +10,24 @@ import matplotlib.dates as mdates
 from matplotlib.backend_bases import MouseButton
 from matplotlib.widgets  import RectangleSelector
 import matplotlib as mpl
-import imageio
 
-from skimage.morphology import binary_dilation, remove_small_objects
-from skimage.filters import gaussian
 from modest import imshow
 
-mpl.rcParams['keymap.save'].remove('s')
-mpl.rcParams['keymap.fullscreen'].remove('f')
-mpl.rcParams['backend'] = "TkAgg"
-
 if __name__ == "__main__":
-    # Settings
-    path = "data"
-    prefix = "2021-08-04T20_48_35"
-    ifile = 50
-    nsub = 1800
+    mpl.rcParams['keymap.save'].remove('s')
+    mpl.rcParams['keymap.fullscreen'].remove('f')
+    mpl.rcParams['backend'] = "TkAgg"
 
+    parser = argparse.ArgumentParser(description='rfplot: plot RF observations', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-p', help='Input path to parent directory /a/b/')
+    parser.add_argument('-P', help='Filename prefix c in c_??????.bin')
+    parser.add_argument('-s', type=int, default=0,  help='Number of starting subintegration')
+    parser.add_argument('-l', type=int, default=3600,  help='Number of subintegrations to plot')
+    parser.add_argument('-C', type=int,  help='Site ID')
+    
+    args = parser.parse_args()
     # Read spectrogram
-    s = Spectrogram(path, prefix, ifile, nsub, 4171)
+    s = Spectrogram(args.p, args.P, args.s, args.l, args.C)
 
     # Create plot
     vmin, vmax = np.percentile(s.z, (5, 99.95))
@@ -59,28 +59,17 @@ if __name__ == "__main__":
             f1_ind = round(len(s.freq) * (y1 - fmin) / (fmax - fmin))
             f2_ind = round(len(s.freq) * (y2 - fmin) / (fmax - fmin))
             
-            
-            submat = gaussian(s.z[f1_ind:f2_ind,t1_ind:t2_ind])
-            data = submat - np.mean(submat, axis=0)
-            mask = data > 3 * np.std(data, axis=0)
-
-            data1 = ma.array(submat, mask=mask)
-            data1 -= ma.mean(data1)
-            mask = data1 > 3 * ma.std(data1, axis=0)
-            mask = binary_dilation(mask,np.ones((7,1)))
-            mask = np.flipud(remove_small_objects(mask, 50))
-            imageio.imwrite(f'test3.png', 255 * mask.astype(np.uint8))
-
-            print(s.z[f1_ind:f2_ind,t1_ind:t2_ind].shape)
+            submat = s.z[f1_ind:f2_ind,t1_ind:t2_ind]
+            # TODO perform some action on submat
         elif mode["current_mode"] == "delete":
             array = mark.get_offsets()
             maskx = np.logical_and(array[:,0] >= min(x1,x2),  array[:,0] <= max(x1,x2))
             masky = np.logical_and(array[:,1] >= min(y1,y2),  array[:,1] <= max(y1,y2))
             mask = np.logical_and(maskx, masky)
             mark.set_offsets(array[np.logical_not(mask),:])
-
         fig.canvas.draw()
-        print(f"select over {x1},{y1},{x2},{y2}")
+        mode = mode["current_mode"]
+        print(f"select over {x1},{y1},{x2},{y2} in {mode} mode")
 
     selector = RectangleSelector(ax, line_select_callback, useblit=True, button=[1], minspanx=5, minspany=5, spancoords='pixels',props={'edgecolor':'white', 'fill': False})
     selector.active = False
