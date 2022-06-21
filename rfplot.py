@@ -68,8 +68,8 @@ if __name__ == "__main__":
             mask = np.logical_and(maskx, masky)
             mark.set_offsets(array[np.logical_not(mask),:])
         fig.canvas.draw()
-        mode = mode["current_mode"]
-        print(f"select over {x1},{y1},{x2},{y2} in {mode} mode")
+        current_mode = mode["current_mode"]
+        print(f"select over {x1},{y1},{x2},{y2} in {current_mode} mode")
 
     selector = RectangleSelector(ax, line_select_callback, useblit=True, button=[1], minspanx=5, minspany=5, spancoords='pixels',props={'edgecolor':'white', 'fill': False})
     selector.active = False
