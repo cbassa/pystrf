@@ -11,6 +11,8 @@ import matplotlib.dates as mdates
 from matplotlib.backend_bases import MouseButton
 from matplotlib.widgets  import RectangleSelector
 import matplotlib as mpl
+from skyfield.api import EarthSatellite
+from skyfield.api import load, wgs84, utc
 
 from modest import imshow
 
@@ -42,6 +44,8 @@ if __name__ == "__main__":
     if site is None:
         print(f"Site with no: {args.C} does not exist")
         sys.exit(1)
+
+    site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
     
     if args.F is not None:
         freq_fname = args.F
@@ -66,8 +70,10 @@ if __name__ == "__main__":
     # Frequency limits
     fcen = np.mean(s.freq)
     fmin, fmax = (s.freq[0] - fcen) * 1e-6, (s.freq[-1] - fcen) * 1e-6
-
+    ts = load.timescale()
     frequencies = []
+    satellite_info = []
+
     if not os.path.exists(freq_fname):
         print(f"warning: Frequencies file not available under {freq_fname}")
     else:
@@ -76,6 +82,8 @@ if __name__ == "__main__":
             print(f"TLE data not available under {tle_fname}")
             sys.exit(1)
         
+        names = ('rise', 'culminate', 'set')
+        t0,t1 = ts.utc(s.t[0].replace(tzinfo=utc)), ts.utc(s.t[-1].replace(tzinfo=utc))
         satellite_info = get_satellite_info(tle_fname, frequencies)
 
     print(f"Found {len(frequencies)} matching satellites")
@@ -84,6 +92,31 @@ if __name__ == "__main__":
     mark = ax.scatter([], [],c="white",s=5)
     line_fitting = ax.scatter([], [], edgecolors="yellow",s=10, facecolors='none')
     # imshow(ax, s.z,  vmin=vmin, vmax=vmax)
+
+    for sat_info in satellite_info:
+        satellite = EarthSatellite(sat_info["tle"][-2], sat_info["tle"][-1])
+        t, events = satellite.find_events(site_location, t0, t1, altitude_degrees=10.0)
+        if len(t) > 0:
+            print(sat_info["noradid"])
+            pairs = [ (ti, event)  for ti, event in zip(t, events)]
+            if pairs[0][1] in [1,2]:
+                pairs = [ (t0, 0)  ] + pairs # pad with rise
+            
+            if pairs[-1][1] in [0, 1]:
+                pairs =  pairs + [ (t1, 2)  ] # pad with set
+
+            pairs = [ (ti, event)  for ti, event in pairs if event != 1 ] # remove culminations
+
+            sat_info["timeslot"] = [ (pairs[i][0], pairs[i+1][0]) for i in range(0, len(pairs), 2)]
+
+            for timeslot in sat_info["timeslot"]:
+                for freq in sat_info["frequencies"]:
+                    t = [mdates.date2num(x.utc_datetime()) for x in timeslot]
+                    freq1 =  (freq -  fcen * 1e-6)
+                    print(t)
+                    ax.plot(t, [freq1, freq1])
+            print(sat_info)
+
     image = imshow(ax, s.z, origin="lower", aspect="auto", interpolation="None",
               vmin=vmin, vmax=vmax,
               extent=[tmin, tmax, fmin, fmax])
