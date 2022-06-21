@@ -4,7 +4,7 @@ import argparse
 import os 
 
 import numpy as np
-from strf.rfio import Spectrogram, get_site_info, get_frequency_info
+from strf.rfio import Spectrogram, get_site_info, get_frequency_info, get_satellite_info
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -48,6 +48,12 @@ if __name__ == "__main__":
     else:
         freq_fname = os.path.join(os.environ["ST_DATADIR"], "data", "frequencies.txt") 
     
+    if "ST_TLEDIR" not in os.environ:
+        print("ST_TLEDIR variable not found")
+        sys.exit(1)
+
+    tle_fname = os.path.join(os.environ["ST_TLEDIR"], "bulk.tle")
+    
     # Read spectrogram
     s = Spectrogram(args.p, args.P, args.s, args.l, args.C)
 
@@ -66,8 +72,13 @@ if __name__ == "__main__":
         print(f"warning: Frequencies file not available under {freq_fname}")
     else:
         frequencies = get_frequency_info(freq_fname, fcen, s.freq[0], s.freq[-1])
-    
-    print(f"Found {len(frequencies)} matching frequencies")
+        if not os.path.exists(tle_fname):
+            print(f"TLE data not available under {tle_fname}")
+            sys.exit(1)
+        
+        satellite_info = get_satellite_info(tle_fname, frequencies)
+
+    print(f"Found {len(frequencies)} matching satellites")
 
     fig, ax = plt.subplots(figsize=(10, 6)) 
     mark = ax.scatter([], [],c="white",s=5)
