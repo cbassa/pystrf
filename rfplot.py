@@ -97,7 +97,6 @@ if __name__ == "__main__":
         satellite = EarthSatellite(sat_info["tle"][-2], sat_info["tle"][-1])
         t, events = satellite.find_events(site_location, t0, t1, altitude_degrees=10.0)
         if len(t) > 0:
-            print(sat_info["noradid"])
             pairs = [ (ti, event)  for ti, event in zip(t, events)]
             if pairs[0][1] in [1,2]:
                 pairs = [ (t0, 0)  ] + pairs # pad with rise
@@ -113,9 +112,7 @@ if __name__ == "__main__":
                 for freq in sat_info["frequencies"]:
                     t = [mdates.date2num(x.utc_datetime()) for x in timeslot]
                     freq1 =  (freq -  fcen * 1e-6)
-                    print(t)
                     ax.plot(t, [freq1, freq1])
-            print(sat_info)
 
     image = imshow(ax, s.z, origin="lower", aspect="auto", interpolation="None",
               vmin=vmin, vmax=vmax,
