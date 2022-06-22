@@ -22,8 +22,8 @@ if __name__ == "__main__":
     mpl.rcParams['backend'] = "TkAgg"
 
     parser = argparse.ArgumentParser(description='rfplot: plot RF observations', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-p', help='Input path to parent directory /a/b/')
-    parser.add_argument('-P', help='Filename prefix c in c_??????.bin')
+    parser.add_argument('-p', help='Input path to parent directory /a/b/', required=True)
+    parser.add_argument('-P', help='Filename prefix c in c_??????.bin', required=True)
     parser.add_argument('-s', type=int, default=0,  help='Number of starting subintegration')
     parser.add_argument('-l', type=int, default=3600,  help='Number of subintegrations to plot')
     parser.add_argument('-C', type=int,  help='Site ID', default=4171)
