@@ -4,13 +4,15 @@ import argparse
 import os 
 
 import numpy as np
-from strf.rfio import Spectrogram, get_site_info
+from strf.rfio import Spectrogram, get_site_info, get_frequency_info, get_satellite_info
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.backend_bases import MouseButton
 from matplotlib.widgets  import RectangleSelector
 import matplotlib as mpl
+from skyfield.api import EarthSatellite
+from skyfield.api import load, wgs84, utc
 
 from modest import imshow
 
@@ -25,6 +27,7 @@ if __name__ == "__main__":
     parser.add_argument('-s', type=int, default=0,  help='Number of starting subintegration')
     parser.add_argument('-l', type=int, default=3600,  help='Number of subintegrations to plot')
     parser.add_argument('-C', type=int,  help='Site ID', default=4171)
+    parser.add_argument('-F', help='List with frequencies')
     
     args = parser.parse_args()
 
@@ -41,7 +44,20 @@ if __name__ == "__main__":
     if site is None:
         print(f"Site with no: {args.C} does not exist")
         sys.exit(1)
-        
+
+    site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
+    
+    if args.F is not None:
+        freq_fname = args.F
+    else:
+        freq_fname = os.path.join(os.environ["ST_DATADIR"], "data", "frequencies.txt") 
+    
+    if "ST_TLEDIR" not in os.environ:
+        print("ST_TLEDIR variable not found")
+        sys.exit(1)
+
+    tle_fname = os.path.join(os.environ["ST_TLEDIR"], "bulk.tle")
+    
     # Read spectrogram
     s = Spectrogram(args.p, args.P, args.s, args.l, args.C)
 
@@ -54,11 +70,55 @@ if __name__ == "__main__":
     # Frequency limits
     fcen = np.mean(s.freq)
     fmin, fmax = (s.freq[0] - fcen) * 1e-6, (s.freq[-1] - fcen) * 1e-6
-    
+    ts = load.timescale()
+    frequencies = []
+    satellite_info = []
+
+    if not os.path.exists(freq_fname):
+        print(f"warning: Frequencies file not available under {freq_fname}")
+    else:
+        frequencies = get_frequency_info(freq_fname, fcen, s.freq[0], s.freq[-1])
+        if not os.path.exists(tle_fname):
+            print(f"TLE data not available under {tle_fname}")
+            sys.exit(1)
+        
+        names = ('rise', 'culminate', 'set')
+        t0,t1 = ts.utc(s.t[0].replace(tzinfo=utc)), ts.utc(s.t[-1].replace(tzinfo=utc))
+        satellite_info = get_satellite_info(tle_fname, frequencies)
+
+    print(f"Found {len(frequencies)} matching satellites")
+
     fig, ax = plt.subplots(figsize=(10, 6)) 
     mark = ax.scatter([], [],c="white",s=5)
     line_fitting = ax.scatter([], [], edgecolors="yellow",s=10, facecolors='none')
     # imshow(ax, s.z,  vmin=vmin, vmax=vmax)
+    timestamps = [ x.replace(tzinfo=utc) for x in  s.t]
+    for sat_info in satellite_info:
+        satellite = EarthSatellite(sat_info["tle"][-2], sat_info["tle"][-1])
+        t, events = satellite.find_events(site_location, t0, t1, altitude_degrees=0.0)
+        if len(t) > 0:
+            pairs = [ (ti, event)  for ti, event in zip(t, events)]
+            if pairs[0][1] in [1,2]:
+                pairs = [ (t0, 0)  ] + pairs # pad with rise
+            
+            if pairs[-1][1] in [0, 1]:
+                pairs =  pairs + [ (t1, 2)  ] # pad with set
+
+            pairs = [ (ti, event)  for ti, event in pairs if event != 1 ] # remove culminations
+
+            sat_info["timeslot"] = [ (pairs[i][0].utc_datetime(), pairs[i+1][0].utc_datetime()) for i in range(0, len(pairs), 2)]
+
+            for timeslot in sat_info["timeslot"]:
+                selected_timestamps = [ x for x in timestamps if x >= timeslot[0] and x <= timeslot[1]]
+                pos = (satellite - site_location).at(ts.utc(selected_timestamps))
+                _, _, _, _, _, range_rate = pos.frame_latlon_and_rates(site_location)
+                C = 299792.458 # km/s
+
+                for freq in sat_info["frequencies"]:
+                    freq1 =  (freq -  fcen * 1e-6)
+                    dfreq = freq1 - range_rate.km_per_s / C * freq # MHz
+                    ax.plot([mdates.date2num(x) for x in selected_timestamps], dfreq,c="lime")
+
     image = imshow(ax, s.z, origin="lower", aspect="auto", interpolation="None",
               vmin=vmin, vmax=vmax,
               extent=[tmin, tmax, fmin, fmax])
