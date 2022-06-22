@@ -16,7 +16,8 @@ from skyfield.api import load, wgs84, utc
 
 from modest import imshow
 
-if __name__ == "__main__":
+
+def main():
     mpl.rcParams['keymap.save'].remove('s')
     mpl.rcParams['keymap.fullscreen'].remove('f')
     mpl.rcParams['backend'] = "TkAgg"
@@ -214,3 +215,7 @@ if __name__ == "__main__":
     fig.canvas.mpl_connect('key_press_event', on_press)
     fig.canvas.mpl_connect('button_press_event', on_click)
     plt.show()
+
+
+if __name__ == "__main__":
+    main()
