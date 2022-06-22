@@ -51,6 +51,7 @@ if __name__ == "__main__":
     parser.add_argument('-l', type=int, default=3600,  help='Number of subintegrations to plot')
     parser.add_argument('-C', type=int,  help='Site ID', default=4171)
     parser.add_argument('-F', help='List with frequencies')
+    parser.add_argument('-a', help='Input path to artifact')
     
     args = parser.parse_args()
 
@@ -81,19 +82,20 @@ if __name__ == "__main__":
     tle_fname = os.path.join(os.environ["ST_TLEDIR"], "bulk.tle")
     
     # Read spectrogram
-    # s = Spectrogram(args.p, args.P, args.s, args.l, args.C)
-    s = Artifact("E:/27a2b9ab-3655-4b41-ac63-ff39f4ba9bee.h5")
-    timestamps = [ x.replace(tzinfo=utc) for x in s.t]
-    site = {"lat" : s.location["latitude"],"lon" : s.location["longitude"],"height" : s.location["altitude"]}
-    site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
-    
-    doppler_corrected = True
-    if doppler_corrected:
+    if args.a is None:
+        s = Spectrogram(args.p, args.P, args.s, args.l, args.C)
+        timestamps = [ x.replace(tzinfo=utc) for x in s.t]
+        range_rate_base = [ 0 for x in timestamps]
+        site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
+    else:
+        s = Artifact(args.a)
+        site = {"lat" : s.location["latitude"],"lon" : s.location["longitude"],"height" : s.location["altitude"]}
+        site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
         satellite = EarthSatellite(s.tle[-2], s.tle[-1])
+        timestamps = [ x.replace(tzinfo=utc) for x in s.t]
         pos = (satellite - site_location).at(ts.utc(timestamps))
         _, _, _, _, _, range_rate_base = pos.frame_latlon_and_rates(site_location)
-    else:
-        range_rate_base = [ 0 for x in timestamps]
+        range_rate_base = range_rate_base.km_per_s
 
     # Create plot
     vmin, vmax = np.percentile(s.z, (5, 99.95))
@@ -141,7 +143,7 @@ if __name__ == "__main__":
             sat_info["timeslot"] = [ (pairs[i][0].utc_datetime(), pairs[i+1][0].utc_datetime()) for i in range(0, len(pairs), 2)]
 
             for timeslot in sat_info["timeslot"]:
-                selected_pairs = [ x for x in zip(timestamps,range_rate_base.km_per_s) if x[0] >= timeslot[0] and x[0] <= timeslot[1]]
+                selected_pairs = [ x for x in zip(timestamps,range_rate_base) if x[0] >= timeslot[0] and x[0] <= timeslot[1]]
                 selected_timestamps = [x[0] for x in selected_pairs]
                 selected_range_rate_base = np.array([x[1] for x in selected_pairs])
                 pos = (satellite - site_location).at(ts.utc(selected_timestamps))
