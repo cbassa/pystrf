@@ -17,6 +17,7 @@ from skyfield.api import load, wgs84, utc
 from modest import imshow
 
 if __name__ == "__main__":
+    plt.style.use('dark_background')
     mpl.rcParams['keymap.save'].remove('s')
     mpl.rcParams['keymap.fullscreen'].remove('f')
     mpl.rcParams['backend'] = "TkAgg"
@@ -117,12 +118,14 @@ if __name__ == "__main__":
                 for freq in sat_info["frequencies"]:
                     freq1 =  (freq -  fcen * 1e-6)
                     dfreq = freq1 - range_rate.km_per_s / C * freq # MHz
-                    ax.plot([mdates.date2num(x) for x in selected_timestamps], dfreq,c="lime")
+                    tt = [mdates.date2num(x) for x in selected_timestamps]
+                    ax.plot(tt, dfreq,c="lime")
+                    ax.text(tt[0], dfreq[0], sat_info["noradid"],c="lime")
 
     image = imshow(ax, s.z, origin="lower", aspect="auto", interpolation="None",
               vmin=vmin, vmax=vmax,
               extent=[tmin, tmax, fmin, fmax])
-
+    
     mode = {
         "current_mode" : None,
         "vmin" : vmin,
