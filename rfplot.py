@@ -38,15 +38,15 @@ class Artifact:
         self.tle = [ x for x in metadata["tle"].split("\n") if x.strip() != "" ]
 
 
-if __name__ == "__main__":
+def main():
     plt.style.use('dark_background')
     mpl.rcParams['keymap.save'].remove('s')
     mpl.rcParams['keymap.fullscreen'].remove('f')
     ts = load.timescale()
 
     parser = argparse.ArgumentParser(description='rfplot: plot RF observations', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-p', help='Input path to parent directory /a/b/')
-    parser.add_argument('-P', help='Filename prefix c in c_??????.bin')
+    parser.add_argument('-p', help='Input path to parent directory /a/b/', required=True)
+    parser.add_argument('-P', help='Filename prefix c in c_??????.bin', required=True)
     parser.add_argument('-s', type=int, default=0,  help='Number of starting subintegration')
     parser.add_argument('-l', type=int, default=3600,  help='Number of subintegrations to plot')
     parser.add_argument('-C', type=int,  help='Site ID', default=4171)
@@ -253,3 +253,7 @@ if __name__ == "__main__":
     fig.canvas.mpl_connect('key_press_event', on_press)
     fig.canvas.mpl_connect('button_press_event', on_click)
     plt.show()
+
+
+if __name__ == "__main__":
+    main()
