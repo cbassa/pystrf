@@ -13,14 +13,36 @@ from matplotlib.widgets  import RectangleSelector
 import matplotlib as mpl
 from skyfield.api import EarthSatellite
 from skyfield.api import load, wgs84, utc
+from datetime import datetime, timedelta
+import h5py
+import json
 
 from modest import imshow
 
+class Artifact:
+    def __init__(self, filename):
+        hdf5_file = h5py.File(filename, 'r')
+
+        if hdf5_file.attrs['artifact_version'] != 2:
+            raise Exception(hdf5_file.attrs['artifact_version'])
+
+        wf = hdf5_file.get('waterfall')
+        metadata = json.loads(hdf5_file.attrs['metadata'])
+        start_time = datetime.strptime(wf.attrs['start_time'].decode('ascii'), '%Y-%m-%dT%H:%M:%S.%fZ')
+        print(metadata)
+        self.z = np.transpose((np.array(wf['data']) * np.array(wf['scale']) + np.array(wf['offset'])))
+        self.fcen = float(metadata['frequency'])
+        self.freq = np.array(hdf5_file.get('waterfall').get("frequency")) + self.fcen
+        self.t = [ start_time + timedelta(seconds=x) for x in  np.array(hdf5_file.get('waterfall').get("relative_time"))]
+        self.location = metadata["location"]
+        self.tle = [ x for x in metadata["tle"].split("\n") if x.strip() != "" ]
+
 
 def main():
+    plt.style.use('dark_background')
     mpl.rcParams['keymap.save'].remove('s')
     mpl.rcParams['keymap.fullscreen'].remove('f')
-    mpl.rcParams['backend'] = "TkAgg"
+    ts = load.timescale()
 
     parser = argparse.ArgumentParser(description='rfplot: plot RF observations', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-p', help='Input path to parent directory /a/b/', required=True)
@@ -29,6 +51,7 @@ def main():
     parser.add_argument('-l', type=int, default=3600,  help='Number of subintegrations to plot')
     parser.add_argument('-C', type=int,  help='Site ID', default=4171)
     parser.add_argument('-F', help='List with frequencies')
+    parser.add_argument('-a', help='Input path to artifact')
     
     args = parser.parse_args()
 
@@ -46,7 +69,6 @@ def main():
         print(f"Site with no: {args.C} does not exist")
         sys.exit(1)
 
-    site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
     
     if args.F is not None:
         freq_fname = args.F
@@ -60,7 +82,20 @@ def main():
     tle_fname = os.path.join(os.environ["ST_TLEDIR"], "bulk.tle")
     
     # Read spectrogram
-    s = Spectrogram(args.p, args.P, args.s, args.l, args.C)
+    if args.a is None:
+        s = Spectrogram(args.p, args.P, args.s, args.l, args.C)
+        timestamps = [ x.replace(tzinfo=utc) for x in s.t]
+        range_rate_base = [ 0 for x in timestamps]
+        site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
+    else:
+        s = Artifact(args.a)
+        site = {"lat" : s.location["latitude"],"lon" : s.location["longitude"],"height" : s.location["altitude"]}
+        site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
+        satellite = EarthSatellite(s.tle[-2], s.tle[-1])
+        timestamps = [ x.replace(tzinfo=utc) for x in s.t]
+        pos = (satellite - site_location).at(ts.utc(timestamps))
+        _, _, _, _, _, range_rate_base = pos.frame_latlon_and_rates(site_location)
+        range_rate_base = range_rate_base.km_per_s
 
     # Create plot
     vmin, vmax = np.percentile(s.z, (5, 99.95))
@@ -69,9 +104,8 @@ def main():
     tmin, tmax = mdates.date2num(s.t[0]), mdates.date2num(s.t[-1])
 
     # Frequency limits
-    fcen = np.mean(s.freq)
+    fcen = s.fcen
     fmin, fmax = (s.freq[0] - fcen) * 1e-6, (s.freq[-1] - fcen) * 1e-6
-    ts = load.timescale()
     frequencies = []
     satellite_info = []
 
@@ -93,7 +127,6 @@ def main():
     mark = ax.scatter([], [],c="white",s=5)
     line_fitting = ax.scatter([], [], edgecolors="yellow",s=10, facecolors='none')
     # imshow(ax, s.z,  vmin=vmin, vmax=vmax)
-    timestamps = [ x.replace(tzinfo=utc) for x in  s.t]
     for sat_info in satellite_info:
         satellite = EarthSatellite(sat_info["tle"][-2], sat_info["tle"][-1])
         t, events = satellite.find_events(site_location, t0, t1, altitude_degrees=0.0)
@@ -110,20 +143,25 @@ def main():
             sat_info["timeslot"] = [ (pairs[i][0].utc_datetime(), pairs[i+1][0].utc_datetime()) for i in range(0, len(pairs), 2)]
 
             for timeslot in sat_info["timeslot"]:
-                selected_timestamps = [ x for x in timestamps if x >= timeslot[0] and x <= timeslot[1]]
+                selected_pairs = [ x for x in zip(timestamps,range_rate_base) if x[0] >= timeslot[0] and x[0] <= timeslot[1]]
+                selected_timestamps = [x[0] for x in selected_pairs]
+                selected_range_rate_base = np.array([x[1] for x in selected_pairs])
                 pos = (satellite - site_location).at(ts.utc(selected_timestamps))
                 _, _, _, _, _, range_rate = pos.frame_latlon_and_rates(site_location)
+                range_rate_sat = range_rate.km_per_s
                 C = 299792.458 # km/s
 
-                for freq in sat_info["frequencies"]:
-                    freq1 =  (freq -  fcen * 1e-6)
-                    dfreq = freq1 - range_rate.km_per_s / C * freq # MHz
-                    ax.plot([mdates.date2num(x) for x in selected_timestamps], dfreq,c="lime")
+                for fsat in sat_info["frequencies"]:
+                    fbase = fcen * 1e-6
+                    dfreq = (1 - range_rate_sat / C) * fsat - (1 - selected_range_rate_base / C) * fbase
+                    tt = [mdates.date2num(x) for x in selected_timestamps]
+                    ax.plot(tt, dfreq,c="orange")
+                    ax.text(tt[0], dfreq[0], sat_info["noradid"],c="orange")
 
     image = imshow(ax, s.z, origin="lower", aspect="auto", interpolation="None",
               vmin=vmin, vmax=vmax,
               extent=[tmin, tmax, fmin, fmax])
-
+    
     mode = {
         "current_mode" : None,
         "vmin" : vmin,
