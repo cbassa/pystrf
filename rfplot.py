@@ -40,55 +40,52 @@ class Artifact:
 
 
 def main():
+    # Default settings
     plt.style.use('dark_background')
     mpl.rcParams['keymap.save'].remove('s')
     mpl.rcParams['keymap.fullscreen'].remove('f')
     ts = load.timescale()
 
+    # Set defaults
+    if "ST_DATADIR" in os.environ:
+        site_fname = os.path.join(os.environ["ST_DATADIR"], "data", "sites.txt")
+        freq_fname = os.path.join(os.environ["ST_DATADIR"], "data", "frequencies.txt")
+    else:
+        site_fname, freq_fname = None, None
+    if "ST_TLEDIR" in os.environ:
+        tle_fname = os.path.join(os.environ["ST_TLEDIR"], "bulk.tle")
+    else:
+        tle_fname = None
+
+    # Parse input arguments
     parser = argparse.ArgumentParser(description="rfplot: plot RF observations", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-p", "--path", help="Input path to parent directory /a/b/", required=True)
-    parser.add_argument("-P", "--prefix", help="Filename prefix c in c_??????.bin", required=True)
+    parser.add_argument("-p", "--path", help="Input path to parent directory /a/b/", type=str)
+    parser.add_argument("-P", "--prefix", help="Filename prefix c in c_??????.bin", type=str)
     parser.add_argument("-s", "--start", type=int, default=0,  help="Number of starting subintegration")
     parser.add_argument("-l", "--length", type=int, default=3600,  help="Number of subintegrations to plot")
     parser.add_argument("-C", "--site", type=int,  help="Site ID", default=4171)
-    parser.add_argument("-F", "--freqlist", help="List with frequencies")
-    parser.add_argument("-a", "--artifact", help="Input path to artifact")
-    parser.add_argument("-d", "--data", help="STRF dat path to load")
-    parser.add_argument("-c", "--catalog", help="TLE catalog to load [str, default: $ST_DATADIR/data/bulk.tle]",
-                        type=str)
-    
+    parser.add_argument("-F", "--freqlist", help="List with frequencies", default=freq_fname, type=str)
+    parser.add_argument("-a", "--artifact", help="Input path to artifact", type=str)
+    parser.add_argument("-d", "--data", help="STRF dat path to load", type=str)
+    parser.add_argument("-c", "--catalog", help="TLE catalog to load", default=tle_fname, type=str)
     args = parser.parse_args()
 
-    if "ST_DATADIR" not in os.environ:
-        print("ST_DATADIR variable not found")
-        sys.exit(1)
-
-    site_fname = os.path.join(os.environ["ST_DATADIR"], "data", "sites.txt") 
-    if not os.path.exists(site_fname):
+    # Input argument logic
+    if site_fname is None or not os.path.exists(site_fname):
         print(f"Sites file not available under {site_fname}")
         sys.exit(1)
-
     site = get_site_info(site_fname, args.site)
     if site is None:
         print(f"Site with no: {args.site} does not exist")
         sys.exit(1)
+    if not os.path.exists(args.freqlist):
+        print(f"Frequency list not available under {args.freqlist}")
+        sys.exit(1)
+    if not os.path.exists(args.catalog):
+        print(f"TLE catalog not available under {args.catalog}")
 
-    
-    if args.freqlist is not None:
-        freq_fname = args.freqlist
-    else:
-        freq_fname = os.path.join(os.environ["ST_DATADIR"], "data", "frequencies.txt") 
-
-    if args.catalog is None:
-        if "ST_TLEDIR" not in os.environ:
-            print("ST_TLEDIR variable not found")
-            sys.exit(1)
-
-        tle_fname = os.path.join(os.environ["ST_TLEDIR"], "bulk.tle")
-    else:
-        tle_fname = args.catalog
-    print(tle_fname)
-    
+    print(site, args.freqlist, args.catalog)
+        
     # Read spectrogram
     if args.artifact is None:
         s = Spectrogram(args.path, args.prefix, args.start, args.length, args.site)
@@ -117,17 +114,10 @@ def main():
     frequencies = []
     satellite_info = []
 
-    if not os.path.exists(freq_fname):
-        print(f"warning: Frequencies file not available under {freq_fname}")
-    else:
-        frequencies = get_frequency_info(freq_fname, fcen, s.freq[0], s.freq[-1])
-        if not os.path.exists(tle_fname):
-            print(f"TLE data not available under {tle_fname}")
-            sys.exit(1)
-        
-        names = ('rise', 'culminate', 'set')
-        t0,t1 = ts.utc(s.t[0].replace(tzinfo=utc)), ts.utc(s.t[-1].replace(tzinfo=utc))
-        satellite_info = get_satellite_info(tle_fname, frequencies)
+    frequencies = get_frequency_info(args.freqlist, fcen, s.freq[0], s.freq[-1])
+    names = ('rise', 'culminate', 'set')
+    t0,t1 = ts.utc(s.t[0].replace(tzinfo=utc)), ts.utc(s.t[-1].replace(tzinfo=utc))
+    satellite_info = get_satellite_info(args.catalog, frequencies)
 
     print(f"Found {len(frequencies)} matching satellites")
 
