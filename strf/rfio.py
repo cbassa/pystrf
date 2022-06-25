@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import os
 import re
+import sys
+import glob
 
 import numpy as np
 
@@ -9,11 +11,27 @@ from datetime import datetime, timedelta
 class Spectrogram:
     """Spectrogram class"""
 
-    def __init__(self, path, prefix, ifile, nsub, siteid):
+    def __init__(self, froot, ifile, nsub, siteid):
         """Define a spectrogram"""
+        path, prefix = extract_path_and_prefix(froot)
 
-        # Read first file to get number of channels
+        # Read matching filenames
+        fnames = sorted(glob.glob(os.path.join(path, f"{prefix}_*.bin")))
+
+        # Start filename
         fname = os.path.join(path, f"{prefix}_{ifile:06d}.bin")
+
+        if not fname in fnames:
+            # Exit on no matching files
+            if fnames == []:
+                print(f"Spectrogram is not available under {fname}")
+                sys.exit(1)
+            else:
+                print(f"Spectrogram is not available under {fname}\nUsing {fnames[0]} instead")
+                fname = fnames[0]
+                ifile = int(fname.split("_")[1].replace(".bin", ""))
+
+        # Read first header
         with open(fname, "rb") as fp:
             header = parse_header(fp.read(256))
 
@@ -29,12 +47,22 @@ class Spectrogram:
         while isub<nsub:
             # File name of file
             fname = os.path.join(path, f"{prefix}_{ifile:06d}.bin")
+
+            # Exit on absent file
+            if not os.path.exists(fname):
+                break
+
+            print(f"Opened {fname}")
             with open(fname, "rb") as fp:
                 next_header = fp.read(256)
                 while next_header:
                     header = parse_header(next_header)
                     t.append(header["utc_start"] + timedelta(seconds=0.5 * header["length"]))
-                    zs.append(np.fromfile(fp, dtype=np.float32, count=nchan))
+                    z = np.fromfile(fp, dtype=np.float32, count=nchan)
+                    # Break on incomplete spectrum
+                    if len(z) != nchan:
+                        break
+                    zs.append(z)
                     next_header = fp.read(256)
                     isub += 1
             ifile += 1
@@ -43,11 +71,28 @@ class Spectrogram:
         self.t = t
         self.freq = freq
         self.fcen = freq_cen
+        self.bw = bw
         self.siteid = siteid
         self.nchan = self.z.shape[0]
         self.nsub = self.z.shape[1]          
 
+        print(f"Read spectrogram\n{self.nchan} channels, {self.nsub} subints\nFrequency: {self.fcen * 1e-6:g} MHz\nBandwidth: {self.bw * 1e-6:g} MHz")
 
+        
+def extract_path_and_prefix(fname):
+    basename, dirname = os.path.basename(fname), os.path.dirname(fname)
+
+    pattern_with_extension = "_\d{6}.bin$"
+    pattern_without_extension = "_\d{6}$"    
+    if re.findall(pattern_with_extension, basename):
+        prefix, _ = re.split(pattern_with_extension, basename)
+    elif re.findall(pattern_without_extension, basename):
+        prefix, _ = re.split(pattern_without_extension, basename)
+    else:
+        prefix = basename
+
+    return dirname, prefix
+        
 def parse_header(header_b):
     header_s = header_b.decode('ASCII').strip('\x00')
     regex = r"^HEADER\nUTC_START    (.*)\nFREQ         (.*) Hz\nBW           (.*) Hz\nLENGTH       (.*) s\nNCHAN        (.*)\nNSUB         (.*)\nEND\n$"

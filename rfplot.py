@@ -60,7 +60,6 @@ def main():
     # Parse input arguments
     parser = argparse.ArgumentParser(description="rfplot: plot RF observations", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-p", "--path", help="Input path to parent directory /a/b/", type=str)
-    parser.add_argument("-P", "--prefix", help="Filename prefix c in c_??????.bin", type=str)
     parser.add_argument("-s", "--start", type=int, default=0,  help="Number of starting subintegration")
     parser.add_argument("-l", "--length", type=int, default=3600,  help="Number of subintegrations to plot")
     parser.add_argument("-C", "--site", type=int,  help="Site ID", default=4171)
@@ -84,11 +83,9 @@ def main():
     if not os.path.exists(args.catalog):
         print(f"TLE catalog not available under {args.catalog}")
 
-    print(site, args.freqlist, args.catalog)
-        
     # Read spectrogram
     if args.artifact is None:
-        s = Spectrogram(args.path, args.prefix, args.start, args.length, args.site)
+        s = Spectrogram(args.path, args.start, args.length, args.site)
         timestamps = [ x.replace(tzinfo=utc) for x in s.t]
         range_rate_base = [ 0 for x in timestamps]
         site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
