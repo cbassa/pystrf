@@ -45,7 +45,6 @@ def main():
     parser.add_argument("-l", "--length", type=int, default=3600,  help="Number of subintegrations to plot")
     parser.add_argument("-C", "--site", type=int,  help="Site ID", default=4171)
     parser.add_argument("-F", "--freqlist", help="List with frequencies", default=freq_fname, type=str)
-    parser.add_argument("-a", "--artifact", help="Input path to artifact", type=str)
     parser.add_argument("-d", "--data", help="STRF dat path to load", type=str)
     parser.add_argument("-c", "--catalog", help="TLE catalog to load", default=tle_fname, type=str)
     args = parser.parse_args()
