@@ -42,6 +42,7 @@ class Spectrogram:
         self.z = np.transpose(np.vstack(zs))
         self.t = t
         self.freq = freq
+        self.fcen = freq_cen
         self.siteid = siteid
         self.nchan = self.z.shape[0]
         self.nsub = self.z.shape[1]          

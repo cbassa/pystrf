@@ -45,15 +45,17 @@ def main():
     mpl.rcParams['keymap.fullscreen'].remove('f')
     ts = load.timescale()
 
-    parser = argparse.ArgumentParser(description='rfplot: plot RF observations', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-p', help='Input path to parent directory /a/b/', required=True)
-    parser.add_argument('-P', help='Filename prefix c in c_??????.bin', required=True)
-    parser.add_argument('-s', type=int, default=0,  help='Number of starting subintegration')
-    parser.add_argument('-l', type=int, default=3600,  help='Number of subintegrations to plot')
-    parser.add_argument('-C', type=int,  help='Site ID', default=4171)
-    parser.add_argument('-F', help='List with frequencies')
-    parser.add_argument('-a', help='Input path to artifact')
-    parser.add_argument('-d', help='STRF dat path to load')
+    parser = argparse.ArgumentParser(description="rfplot: plot RF observations", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("-p", "--path", help="Input path to parent directory /a/b/", required=True)
+    parser.add_argument("-P", "--prefix", help="Filename prefix c in c_??????.bin", required=True)
+    parser.add_argument("-s", "--start", type=int, default=0,  help="Number of starting subintegration")
+    parser.add_argument("-l", "--length", type=int, default=3600,  help="Number of subintegrations to plot")
+    parser.add_argument("-C", "--site", type=int,  help="Site ID", default=4171)
+    parser.add_argument("-F", "--freqlist", help="List with frequencies")
+    parser.add_argument("-a", "--artifact", help="Input path to artifact")
+    parser.add_argument("-d", "--data", help="STRF dat path to load")
+    parser.add_argument("-c", "--catalog", help="TLE catalog to load [str, default: $ST_DATADIR/data/bulk.tle]",
+                        type=str)
     
     args = parser.parse_args()
 
@@ -66,31 +68,35 @@ def main():
         print(f"Sites file not available under {site_fname}")
         sys.exit(1)
 
-    site = get_site_info(site_fname, args.C)
+    site = get_site_info(site_fname, args.site)
     if site is None:
-        print(f"Site with no: {args.C} does not exist")
+        print(f"Site with no: {args.site} does not exist")
         sys.exit(1)
 
     
-    if args.F is not None:
-        freq_fname = args.F
+    if args.freqlist is not None:
+        freq_fname = args.freqlist
     else:
         freq_fname = os.path.join(os.environ["ST_DATADIR"], "data", "frequencies.txt") 
-    
-    if "ST_TLEDIR" not in os.environ:
-        print("ST_TLEDIR variable not found")
-        sys.exit(1)
 
-    tle_fname = os.path.join(os.environ["ST_TLEDIR"], "bulk.tle")
+    if args.catalog is None:
+        if "ST_TLEDIR" not in os.environ:
+            print("ST_TLEDIR variable not found")
+            sys.exit(1)
+
+        tle_fname = os.path.join(os.environ["ST_TLEDIR"], "bulk.tle")
+    else:
+        tle_fname = args.catalog
+    print(tle_fname)
     
     # Read spectrogram
-    if args.a is None:
-        s = Spectrogram(args.p, args.P, args.s, args.l, args.C)
+    if args.artifact is None:
+        s = Spectrogram(args.path, args.prefix, args.start, args.length, args.site)
         timestamps = [ x.replace(tzinfo=utc) for x in s.t]
         range_rate_base = [ 0 for x in timestamps]
         site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
     else:
-        s = Artifact(args.a)
+        s = Artifact(args.artifact)
         site = {"lat" : s.location["latitude"],"lon" : s.location["longitude"],"height" : s.location["altitude"]}
         site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
         satellite = EarthSatellite(s.tle[-2], s.tle[-1])
@@ -148,8 +154,8 @@ def main():
     
     mark = ax.scatter([], [],c="white",s=5)
     
-    if args.d is not None:
-        with open(args.d,"r") as f:
+    if args.data is not None:
+        with open(args.data,"r") as f:
             lines = [ x.strip().split() for x in f.readlines() ]
             mjds = [float(x[0]) for x in lines]
             freqs = [float(x[1]) for x in lines]
