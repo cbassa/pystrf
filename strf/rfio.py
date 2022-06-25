@@ -45,7 +45,7 @@ class Spectrogram:
             else:
                 print(f"Spectrogram is not available under {fname}\nUsing {fnames[0]} instead")
                 fname = fnames[0]
-                ifile = int(fname.split("_")[1].replace(".bin", ""))
+                ifile = int(fname.split("_")[-1].replace(".bin", ""))
 
         # Read first header
         with open(fname, "rb") as fp:
