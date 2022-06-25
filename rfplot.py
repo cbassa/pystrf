@@ -40,10 +40,10 @@ def main():
 
     # Parse input arguments
     parser = argparse.ArgumentParser(description="rfplot: plot RF observations", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-p", "--path", help="Input path to parent directory /a/b/", type=str)
-    parser.add_argument("-s", "--start", type=int, default=0,  help="Number of starting subintegration")
-    parser.add_argument("-l", "--length", type=int, default=3600,  help="Number of subintegrations to plot")
-    parser.add_argument("-C", "--site", type=int,  help="Site ID", default=4171)
+    parser.add_argument("-p", "--path", help="File to read [STRF bin files as /path/to/file_??????.bin, /path/to/file_??????, /path/to/file or SatNOGS HDF5 artifact]", type=str, required=True)
+    parser.add_argument("-s", "--start", type=int, default=0,  help="Number of starting subintegration [STRF bin files]")
+    parser.add_argument("-l", "--length", type=int, default=3600,  help="Number of subintegrations to plot [STRF bin files]")
+    parser.add_argument("-C", "--site", type=int,  help="Site ID [STRF bin files]", default=4171)
     parser.add_argument("-F", "--freqlist", help="List with frequencies", default=freq_fname, type=str)
     parser.add_argument("-d", "--data", help="STRF dat path to load", type=str)
     parser.add_argument("-c", "--catalog", help="TLE catalog to load", default=tle_fname, type=str)
