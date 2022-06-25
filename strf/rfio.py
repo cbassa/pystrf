@@ -4,6 +4,9 @@ import re
 import sys
 import glob
 
+import h5py
+import json
+
 import numpy as np
 
 from datetime import datetime, timedelta
@@ -11,7 +14,20 @@ from datetime import datetime, timedelta
 class Spectrogram:
     """Spectrogram class"""
 
-    def __init__(self, froot, ifile, nsub, siteid):
+    def __init__(self, t, fcen, bw, freq, z, siteid, location, tle):
+        self.z = z
+        self.nchan = self.z.shape[0]
+        self.nsub = self.z.shape[1]
+        self.t = t
+        self.fcen = fcen
+        self.bw = bw
+        self.freq = freq
+        self.siteid = siteid
+        self.location = location
+        self.tle = tle
+
+    @classmethod
+    def from_spectrogram(cls, froot, ifile, nsub, siteid):
         """Define a spectrogram"""
         path, prefix = extract_path_and_prefix(froot)
 
@@ -67,17 +83,35 @@ class Spectrogram:
                     isub += 1
             ifile += 1
 
-        self.z = np.transpose(np.vstack(zs))
-        self.t = t
-        self.freq = freq
-        self.fcen = freq_cen
-        self.bw = bw
-        self.siteid = siteid
-        self.nchan = self.z.shape[0]
-        self.nsub = self.z.shape[1]          
+        z = np.transpose(np.vstack(zs))
+            
+        print(f"Read spectrogram\n{nchan} channels, {nsub} subints\nFrequency: {freq_cen * 1e-6:g} MHz\nBandwidth: {bw * 1e-6:g} MHz")
 
-        print(f"Read spectrogram\n{self.nchan} channels, {self.nsub} subints\nFrequency: {self.fcen * 1e-6:g} MHz\nBandwidth: {self.bw * 1e-6:g} MHz")
+        return cls(t, freq_cen, bw, freq, z, siteid, None, None)
 
+
+    @classmethod
+    def from_artifact(cls, filename):
+        hdf5_file = h5py.File(filename, "r")
+
+        if hdf5_file.attrs["artifact_version"] != 2:
+            raise Exception(hdf5_file.attrs["artifact_version"])
+
+        wf = hdf5_file.get("waterfall")
+        metadata = json.loads(hdf5_file.attrs["metadata"])
+        start_time = datetime.strptime(wf.attrs["start_time"].decode("ascii"), "%Y-%m-%dT%H:%M:%S.%fZ")
+        z = np.transpose((np.array(wf["data"]) * np.array(wf["scale"]) + np.array(wf["offset"])))
+        fcen = float(metadata["frequency"])
+        freq = np.array(hdf5_file.get("waterfall").get("frequency")) + fcen
+        bw = (freq[1] - freq[0]) * z.shape[0]
+        t = [ start_time + timedelta(seconds=x) for x in  np.array(hdf5_file.get("waterfall").get("relative_time"))]
+        location = metadata["location"]
+        tle = [ x for x in metadata["tle"].split("\n") if x.strip() != "" ]
+        nsub, nchan = z.shape
+        
+        print(f"Read artifact\n{nchan} channels, {nsub} subints\nFrequency: {fcen * 1e-6:g} MHz\nBandwidth: {bw * 1e-6:g} MHz")
+        
+        return cls(t, fcen, bw, freq, z, None, location, tle)
         
 def extract_path_and_prefix(fname):
     basename, dirname = os.path.basename(fname), os.path.dirname(fname)
@@ -94,21 +128,21 @@ def extract_path_and_prefix(fname):
     return dirname, prefix
         
 def parse_header(header_b):
-    header_s = header_b.decode('ASCII').strip('\x00')
+    header_s = header_b.decode("ASCII").strip("\x00")
     regex = r"^HEADER\nUTC_START    (.*)\nFREQ         (.*) Hz\nBW           (.*) Hz\nLENGTH       (.*) s\nNCHAN        (.*)\nNSUB         (.*)\nEND\n$"
     try:
         match = re.fullmatch(regex, header_s, re.MULTILINE)
     except AttributeError:
         match = re.match(regex, header_s, flags=re.MULTILINE)
 
-    utc_start = datetime.strptime(match.group(1), '%Y-%m-%dT%H:%M:%S.%f')
+    utc_start = datetime.strptime(match.group(1), "%Y-%m-%dT%H:%M:%S.%f")
 
-    return {'utc_start': utc_start,
-            'freq': float(match.group(2)),
-            'bw': float(match.group(3)),
-            'length': float(match.group(4)),
-            'nchan': int(match.group(5)),
-            'nsub': int(match.group(6))}
+    return {"utc_start": utc_start,
+            "freq": float(match.group(2)),
+            "bw": float(match.group(3)),
+            "length": float(match.group(4)),
+            "nchan": int(match.group(5)),
+            "nsub": int(match.group(6))}
     
 
 def get_site_info(fname, site_id):
@@ -143,7 +177,6 @@ def get_frequency_info(fname, fcen, fmin, fmax):
     C = 299792.458 # km/s
     padding = fcen * 20 / C # padding in MHz
     fmin_padding,fmax_padding = (fmin - padding) * 1e-6, (fmax + padding) * 1e-6
-
     frequencies = {}
     for line in lines:
         if "#" in line:

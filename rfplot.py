@@ -20,25 +20,6 @@ from astropy.time import Time
 
 from modest import imshow
 
-class Artifact:
-    def __init__(self, filename):
-        hdf5_file = h5py.File(filename, 'r')
-
-        if hdf5_file.attrs['artifact_version'] != 2:
-            raise Exception(hdf5_file.attrs['artifact_version'])
-
-        wf = hdf5_file.get('waterfall')
-        metadata = json.loads(hdf5_file.attrs['metadata'])
-        start_time = datetime.strptime(wf.attrs['start_time'].decode('ascii'), '%Y-%m-%dT%H:%M:%S.%fZ')
-        print(metadata)
-        self.z = np.transpose((np.array(wf['data']) * np.array(wf['scale']) + np.array(wf['offset'])))
-        self.fcen = float(metadata['frequency'])
-        self.freq = np.array(hdf5_file.get('waterfall').get("frequency")) + self.fcen
-        self.t = [ start_time + timedelta(seconds=x) for x in  np.array(hdf5_file.get('waterfall').get("relative_time"))]
-        self.location = metadata["location"]
-        self.tle = [ x for x in metadata["tle"].split("\n") if x.strip() != "" ]
-
-
 def main():
     # Default settings
     plt.style.use('dark_background')
@@ -84,13 +65,9 @@ def main():
         print(f"TLE catalog not available under {args.catalog}")
 
     # Read spectrogram
-    if args.artifact is None:
-        s = Spectrogram(args.path, args.start, args.length, args.site)
-        timestamps = [ x.replace(tzinfo=utc) for x in s.t]
-        range_rate_base = [ 0 for x in timestamps]
-        site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
-    else:
-        s = Artifact(args.artifact)
+    fext = os.path.splitext(args.path)[-1]
+    if (fext == ".h5") or (fext == ".hdf5"):
+        s = Spectrogram.from_artifact(args.path)
         site = {"lat" : s.location["latitude"],"lon" : s.location["longitude"],"height" : s.location["altitude"]}
         site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
         satellite = EarthSatellite(s.tle[-2], s.tle[-1])
@@ -98,6 +75,11 @@ def main():
         pos = (satellite - site_location).at(ts.utc(timestamps))
         _, _, _, _, _, range_rate_base = pos.frame_latlon_and_rates(site_location)
         range_rate_base = range_rate_base.km_per_s
+    else:
+        s = Spectrogram.from_spectrogram(args.path, args.start, args.length, args.site)
+        timestamps = [ x.replace(tzinfo=utc) for x in s.t]
+        range_rate_base = [ 0 for x in timestamps]
+        site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
 
     # Create plot
     vmin, vmax = np.percentile(s.z, (5, 99.95))
@@ -111,6 +93,7 @@ def main():
     frequencies = []
     satellite_info = []
 
+    
     frequencies = get_frequency_info(args.freqlist, fcen, s.freq[0], s.freq[-1])
     names = ('rise', 'culminate', 'set')
     t0,t1 = ts.utc(s.t[0].replace(tzinfo=utc)), ts.utc(s.t[-1].replace(tzinfo=utc))
