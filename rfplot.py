@@ -22,9 +22,9 @@ from modest import imshow
 
 def main():
     # Default settings
-    plt.style.use('dark_background')
-    mpl.rcParams['keymap.save'].remove('s')
-    mpl.rcParams['keymap.fullscreen'].remove('f')
+    plt.style.use("dark_background")
+    mpl.rcParams["keymap.save"].remove("s")
+    mpl.rcParams["keymap.fullscreen"].remove("f")
     ts = load.timescale()
 
     # Set defaults
@@ -94,7 +94,7 @@ def main():
 
     
     frequencies = get_frequency_info(args.freqlist, fcen, s.freq[0], s.freq[-1])
-    names = ('rise', 'culminate', 'set')
+    names = ("rise", "culminate", "set")
     t0,t1 = ts.utc(s.t[0].replace(tzinfo=utc)), ts.utc(s.t[-1].replace(tzinfo=utc))
     satellite_info = get_satellite_info(args.catalog, frequencies)
 
@@ -115,7 +115,7 @@ def main():
 
     def file_to_plot(ts1, freqs):
         array = np.transpose(np.array([
-            [mdates.date2num(x) for x in Time(ts1, format='mjd').datetime],
+            [mdates.date2num(x) for x in Time(ts1, format="mjd").datetime],
             [x - fcen*1e-6 for x in freqs]
         ]))
 
@@ -131,7 +131,7 @@ def main():
             array = file_to_plot(mjds, freqs)
             mark.set_offsets(array)
     
-    line_fitting = ax.scatter([], [], edgecolors="yellow",s=10, facecolors='none')
+    line_fitting = ax.scatter([], [], edgecolors="yellow",s=10, facecolors="none")
     # imshow(ax, s.z,  vmin=vmin, vmax=vmax)
     for sat_info in satellite_info:
         satellite = EarthSatellite(sat_info["tle"][-2], sat_info["tle"][-1])
@@ -195,7 +195,7 @@ def main():
         current_mode = mode["current_mode"]
         print(f"select over {x1},{y1},{x2},{y2} in {current_mode} mode")
 
-    selector = RectangleSelector(ax, line_select_callback, useblit=True, button=[1], minspanx=5, minspany=5, spancoords='pixels',props={'edgecolor':'white', 'fill': False})
+    selector = RectangleSelector(ax, line_select_callback, useblit=True, button=[1], minspanx=5, minspany=5, spancoords="pixels",props={"edgecolor":"white", "fill": False})
     selector.active = False
 
     ax.xaxis_date()
@@ -256,8 +256,8 @@ def main():
             print(f"{event.xdata} {fcen + event.ydata}")
             sys.stdout.flush()
 
-    fig.canvas.mpl_connect('key_press_event', on_press)
-    fig.canvas.mpl_connect('button_press_event', on_click)
+    fig.canvas.mpl_connect("key_press_event", on_press)
+    fig.canvas.mpl_connect("button_press_event", on_click)
     plt.show()
 
 
