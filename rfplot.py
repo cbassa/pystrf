@@ -16,6 +16,7 @@ from skyfield.api import load, wgs84, utc
 from datetime import datetime, timedelta
 import h5py
 import json
+from astropy.time import Time
 
 from modest import imshow
 
@@ -52,6 +53,7 @@ def main():
     parser.add_argument('-C', type=int,  help='Site ID', default=4171)
     parser.add_argument('-F', help='List with frequencies')
     parser.add_argument('-a', help='Input path to artifact')
+    parser.add_argument('-d', help='STRF dat path to load')
     
     args = parser.parse_args()
 
@@ -124,7 +126,36 @@ def main():
     print(f"Found {len(frequencies)} matching satellites")
 
     fig, ax = plt.subplots(figsize=(10, 6)) 
+    
+    def plot_to_file(array):
+        print(array.shape)
+        ts1 = Time([mdates.num2date(x) for x in array[:,0]]).mjd
+        freqs = np.array([x + fcen *1e-6 for x in array[:,1]])
+
+        with open("mark.dat","w") as f:
+            for t, freq in zip(ts1,freqs):
+                f.write(f"{t} {freq}\n")
+
+        return ts1, freqs
+
+    def file_to_plot(ts1, freqs):
+        array = np.transpose(np.array([
+            [mdates.date2num(x) for x in Time(ts1, format='mjd').datetime],
+            [x - fcen*1e-6 for x in freqs]
+        ]))
+
+        return array
+    
     mark = ax.scatter([], [],c="white",s=5)
+    
+    if args.d is not None:
+        with open(args.d,"r") as f:
+            lines = [ x.strip().split() for x in f.readlines() ]
+            mjds = [float(x[0]) for x in lines]
+            freqs = [float(x[1]) for x in lines]
+            array = file_to_plot(mjds, freqs)
+            mark.set_offsets(array)
+    
     line_fitting = ax.scatter([], [], edgecolors="yellow",s=10, facecolors='none')
     # imshow(ax, s.z,  vmin=vmin, vmax=vmax)
     for sat_info in satellite_info:
@@ -202,8 +233,8 @@ def main():
     
     def add_point(scatter, point):
         array = scatter.get_offsets()
-        print(array)
         array = np.vstack([array, point])
+        plot_to_file(array)
         scatter.set_offsets(array)
         fig.canvas.draw()
 
