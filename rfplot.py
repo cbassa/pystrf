@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 import h5py
 import json
 from astropy.time import Time
+C = 299792.458 # km/s
 
 from modest import imshow
 
@@ -121,6 +122,11 @@ def main():
         return ts1, freqs
 
     def file_to_plot(ts1, freqs):
+        if  base_satellite is not None:
+            t = ts.utc([x.replace(tzinfo=utc) for x in Time(ts1, format='mjd').datetime])
+            correction = get_doppler_correction(site_location, base_satellite, t, fcen)
+            freqs += correction
+            
         array = np.transpose(np.array([
             [mdates.date2num(x) for x in Time(ts1, format='mjd').datetime],
             [x - fcen*1e-6 for x in freqs]
@@ -165,7 +171,6 @@ def main():
                 pos = (satellite - site_location).at(ts.utc(selected_timestamps))
                 _, _, _, _, _, range_rate = pos.frame_latlon_and_rates(site_location)
                 range_rate_sat = range_rate.km_per_s
-                C = 299792.458 # km/s
 
                 for fsat in sat_info["frequencies"]:
                     fbase = fcen * 1e-6
