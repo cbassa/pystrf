@@ -43,7 +43,7 @@ def main():
 
     # Parse input arguments
     parser = argparse.ArgumentParser(description="rfplot: plot RF observations", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-p", "--path", help="File to read [STRF bin files as /path/to/file_??????.bin, /path/to/file_??????, /path/to/file or SatNOGS HDF5 artifact]", type=str, required=True)
+    parser.add_argument("-p", "--path", help="File to read [STRF bin files as /path/to/file_??????.bin, /path/to/file_??????, /path/to/file, SatNOGS HDF5 artifact or number which indicates SatNOGs observation id]", type=str, required=True)
     parser.add_argument("-s", "--start", type=int, default=0,  help="Number of starting subintegration [STRF bin files]")
     parser.add_argument("-l", "--length", type=int, default=3600,  help="Number of subintegrations to plot [STRF bin files]")
     parser.add_argument("-C", "--site", type=int,  help="Site ID [STRF bin files]", default=4171)
