@@ -35,7 +35,7 @@ def main():
         freq_fname = os.path.join(os.environ["ST_DATADIR"], "data", "frequencies.txt")
         apikey_fname = os.path.join(os.environ["ST_DATADIR"], "data", "apikey.txt")
     else:
-        site_fname, freq_fname = None, None
+        site_fname, freq_fname,apikey_fname = None, None, None
     if "ST_TLEDIR" in os.environ:
         tle_fname = os.path.join(os.environ["ST_TLEDIR"], "bulk.tle")
     else:
@@ -69,6 +69,9 @@ def main():
     # Read spectrogram
     base_satellite = None
     if re.match(r"\d+", args.path): # assume satnogs id
+        if apikey_fname is None:
+            print(f"ST_DATADIR env variable not defined")
+            sys.exit(1)
         if not os.path.exists(apikey_fname):
             print(f"File containing API key not available under {apikey_fname}")
             sys.exit(1)
