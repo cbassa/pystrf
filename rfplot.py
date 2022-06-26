@@ -18,6 +18,7 @@ import h5py
 import json
 import requests
 from astropy.time import Time
+from  astropy.visualization import ZScaleInterval
 C = 299792.458 # km/s
 
 from modest import imshow
@@ -112,7 +113,7 @@ def main():
         site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
 
     # Create plot
-    vmin, vmax = np.percentile(s.z, (5, 99.95))
+    vmin, vmax = ZScaleInterval().get_limits(s.z)
 
     # Time limits
     tmin, tmax = mdates.date2num(s.t[0]), mdates.date2num(s.t[-1])
