@@ -69,9 +69,9 @@ def main():
         s = Spectrogram.from_artifact(args.path)
         site = {"lat" : s.location["latitude"],"lon" : s.location["longitude"],"height" : s.location["altitude"]}
         site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
-        satellite = EarthSatellite(s.tle[-2], s.tle[-1])
+        base_satellite = EarthSatellite(s.tle[-2], s.tle[-1])
         timestamps = [ x.replace(tzinfo=utc) for x in s.t]
-        pos = (satellite - site_location).at(ts.utc(timestamps))
+        pos = (base_satellite - site_location).at(ts.utc(timestamps))
         _, _, _, _, _, range_rate_base = pos.frame_latlon_and_rates(site_location)
         range_rate_base = range_rate_base.km_per_s
     else:
@@ -102,14 +102,21 @@ def main():
 
     fig, ax = plt.subplots(figsize=(10, 6)) 
     
+    def get_doppler_correction(site, satellite, t, frequency): # frequency in Hz
+        _, _, _, _, _, range_rate = (satellite - site).at(t).frame_latlon_and_rates(site)
+        return range_rate.km_per_s / C * frequency
+    
     def plot_to_file(array):
         print(array.shape)
         ts1 = Time([mdates.num2date(x) for x in array[:,0]]).mjd
-        freqs = np.array([x + fcen *1e-6 for x in array[:,1]])
+        freqs = np.array([*1e6 + fcen  for x in array[:,1]])
+        if  base_satellite is not None:
+            temp_t = ts.utc([mdates.num2date(x) for x in array[:,0]])
+            freqs -= get_doppler_correction(site_location, base_satellite, temp_t, fcen)
 
         with open("mark.dat","w") as f:
             for t, freq in zip(ts1,freqs):
-                f.write(f"{t} {freq}\n")
+                f.write(f"{t} {freq} 10 {args.site}\n")
 
         return ts1, freqs
 
