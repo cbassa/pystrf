@@ -2,7 +2,7 @@
 import sys
 import argparse
 import os 
-
+import re
 import numpy as np
 from strf.rfio import Spectrogram, get_site_info, get_frequency_info, get_satellite_info
 
@@ -16,7 +16,10 @@ from skyfield.api import load, wgs84, utc
 from datetime import datetime, timedelta
 import h5py
 import json
+import requests
 from astropy.time import Time
+from  astropy.visualization import ZScaleInterval
+C = 299792.458 # km/s
 
 from modest import imshow
 
@@ -31,8 +34,9 @@ def main():
     if "ST_DATADIR" in os.environ:
         site_fname = os.path.join(os.environ["ST_DATADIR"], "data", "sites.txt")
         freq_fname = os.path.join(os.environ["ST_DATADIR"], "data", "frequencies.txt")
+        apikey_fname = os.path.join(os.environ["ST_DATADIR"], "data", "apikey.txt")
     else:
-        site_fname, freq_fname = None, None
+        site_fname, freq_fname,apikey_fname = None, None, None
     if "ST_TLEDIR" in os.environ:
         tle_fname = os.path.join(os.environ["ST_TLEDIR"], "bulk.tle")
     else:
@@ -40,7 +44,7 @@ def main():
 
     # Parse input arguments
     parser = argparse.ArgumentParser(description="rfplot: plot RF observations", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-p", "--path", help="File to read [STRF bin files as /path/to/file_??????.bin, /path/to/file_??????, /path/to/file or SatNOGS HDF5 artifact]", type=str, required=True)
+    parser.add_argument("-p", "--path", help="File to read [STRF bin files as /path/to/file_??????.bin, /path/to/file_??????, /path/to/file, SatNOGS HDF5 artifact or number which indicates SatNOGs observation id]", type=str, required=True)
     parser.add_argument("-s", "--start", type=int, default=0,  help="Number of starting subintegration [STRF bin files]")
     parser.add_argument("-l", "--length", type=int, default=3600,  help="Number of subintegrations to plot [STRF bin files]")
     parser.add_argument("-C", "--site", type=int,  help="Site ID [STRF bin files]", default=4171)
@@ -64,14 +68,42 @@ def main():
         print(f"TLE catalog not available under {args.catalog}")
 
     # Read spectrogram
+    base_satellite = None
+    if re.match(r"\d+", args.path): # assume satnogs id
+        if apikey_fname is None:
+            print(f"ST_DATADIR env variable not defined")
+            sys.exit(1)
+        if not os.path.exists(apikey_fname):
+            print(f"File containing API key not available under {apikey_fname}")
+            sys.exit(1)
+
+        with open(apikey_fname,"r") as f:
+            apikey = f.read().strip()
+
+        config = requests.get(f"https://db.satnogs.org/api/artifacts/?format=json&network_obs_id={args.path}",headers={'Authorization': f'Token {apikey}'}).json()
+        if len(config) == 0:
+            print(f"Observation with id: {args.path} has no artifact associated")
+            sys.exit(1)
+        filename = os.path.basename(config[0]["artifact_file"])
+        args.path = filename
+        if not os.path.exists(filename):
+            r = requests.get(config[0]["artifact_file"], stream=True)
+            if r.status_code == 200:
+                with open(filename, 'wb') as f:
+                    r.raw.decode_content = True
+                    shutil.copyfileobj(r.raw, f) 
+            elif r.status_code == 401:
+                print(f"Bad API key provided")
+                sys.exit(1)
+    
     fext = os.path.splitext(args.path)[-1]
     if (fext == ".h5") or (fext == ".hdf5"):
         s = Spectrogram.from_artifact(args.path)
         site = {"lat" : s.location["latitude"],"lon" : s.location["longitude"],"height" : s.location["altitude"]}
         site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
-        satellite = EarthSatellite(s.tle[-2], s.tle[-1])
+        base_satellite = EarthSatellite(s.tle[-2], s.tle[-1])
         timestamps = [ x.replace(tzinfo=utc) for x in s.t]
-        pos = (satellite - site_location).at(ts.utc(timestamps))
+        pos = (base_satellite - site_location).at(ts.utc(timestamps))
         _, _, _, _, _, range_rate_base = pos.frame_latlon_and_rates(site_location)
         range_rate_base = range_rate_base.km_per_s
     else:
@@ -81,7 +113,7 @@ def main():
         site_location = wgs84.latlon(site["lat"], site["lon"], site["height"])
 
     # Create plot
-    vmin, vmax = np.percentile(s.z, (5, 99.95))
+    vmin, vmax = ZScaleInterval().get_limits(s.z)
 
     # Time limits
     tmin, tmax = mdates.date2num(s.t[0]), mdates.date2num(s.t[-1])
@@ -102,18 +134,30 @@ def main():
 
     fig, ax = plt.subplots(figsize=(10, 6)) 
     
+    def get_doppler_correction(site, satellite, t, frequency): # frequency in Hz
+        _, _, _, _, _, range_rate = (satellite - site).at(t).frame_latlon_and_rates(site)
+        return range_rate.km_per_s / C * frequency
+    
     def plot_to_file(array):
         print(array.shape)
         ts1 = Time([mdates.num2date(x) for x in array[:,0]]).mjd
-        freqs = np.array([x + fcen *1e-6 for x in array[:,1]])
+        freqs = np.array([x*1e6 + fcen  for x in array[:,1]])
+        if  base_satellite is not None:
+            temp_t = ts.utc([mdates.num2date(x) for x in array[:,0]])
+            freqs -= get_doppler_correction(site_location, base_satellite, temp_t, fcen)
 
         with open("mark.dat","w") as f:
             for t, freq in zip(ts1,freqs):
-                f.write(f"{t} {freq}\n")
+                f.write(f"{t} {freq} 10 {args.site}\n")
 
         return ts1, freqs
 
     def file_to_plot(ts1, freqs):
+        if  base_satellite is not None:
+            t = ts.utc([x.replace(tzinfo=utc) for x in Time(ts1, format='mjd').datetime])
+            correction = get_doppler_correction(site_location, base_satellite, t, fcen)
+            freqs += correction
+            
         array = np.transpose(np.array([
             [mdates.date2num(x) for x in Time(ts1, format="mjd").datetime],
             [x - fcen*1e-6 for x in freqs]
@@ -158,7 +202,6 @@ def main():
                 pos = (satellite - site_location).at(ts.utc(selected_timestamps))
                 _, _, _, _, _, range_rate = pos.frame_latlon_and_rates(site_location)
                 range_rate_sat = range_rate.km_per_s
-                C = 299792.458 # km/s
 
                 for fsat in sat_info["frequencies"]:
                     fbase = fcen * 1e-6
