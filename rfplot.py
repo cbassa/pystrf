@@ -136,7 +136,7 @@ def main():
     def plot_to_file(array):
         print(array.shape)
         ts1 = Time([mdates.num2date(x) for x in array[:,0]]).mjd
-        freqs = np.array([*1e6 + fcen  for x in array[:,1]])
+        freqs = np.array([x*1e6 + fcen  for x in array[:,1]])
         if  base_satellite is not None:
             temp_t = ts.utc([mdates.num2date(x) for x in array[:,0]])
             freqs -= get_doppler_correction(site_location, base_satellite, temp_t, fcen)
