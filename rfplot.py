@@ -2,7 +2,7 @@
 import sys
 import argparse
 import os 
-
+import re
 import numpy as np
 from strf.rfio import Spectrogram, get_site_info, get_frequency_info, get_satellite_info
 
@@ -16,6 +16,7 @@ from skyfield.api import load, wgs84, utc
 from datetime import datetime, timedelta
 import h5py
 import json
+import requests
 from astropy.time import Time
 C = 299792.458 # km/s
 
