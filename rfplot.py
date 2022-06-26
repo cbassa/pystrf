@@ -32,6 +32,7 @@ def main():
     if "ST_DATADIR" in os.environ:
         site_fname = os.path.join(os.environ["ST_DATADIR"], "data", "sites.txt")
         freq_fname = os.path.join(os.environ["ST_DATADIR"], "data", "frequencies.txt")
+        apikey_fname = os.path.join(os.environ["ST_DATADIR"], "data", "apikey.txt")
     else:
         site_fname, freq_fname = None, None
     if "ST_TLEDIR" in os.environ:
@@ -65,6 +66,31 @@ def main():
         print(f"TLE catalog not available under {args.catalog}")
 
     # Read spectrogram
+    base_satellite = None
+    if re.match(r"\d+", args.path): # assume satnogs id
+        if not os.path.exists(apikey_fname):
+            print(f"File containing API key not available under {apikey_fname}")
+            sys.exit(1)
+
+        with open(apikey_fname,"r") as f:
+            apikey = f.read().strip()
+
+        config = requests.get(f"https://db.satnogs.org/api/artifacts/?format=json&network_obs_id={args.path}",headers={'Authorization': f'Token {apikey}'}).json()
+        if len(config) == 0:
+            print(f"Observation with id: {args.path} has no artifact associated")
+            sys.exit(1)
+        filename = os.path.basename(config[0]["artifact_file"])
+        args.path = filename
+        if not os.path.exists(filename):
+            r = requests.get(config[0]["artifact_file"], stream=True)
+            if r.status_code == 200:
+                with open(filename, 'wb') as f:
+                    r.raw.decode_content = True
+                    shutil.copyfileobj(r.raw, f) 
+            elif r.status_code == 401:
+                print(f"Bad API key provided")
+                sys.exit(1)
+    
     fext = os.path.splitext(args.path)[-1]
     if (fext == ".h5") or (fext == ".hdf5"):
         s = Spectrogram.from_artifact(args.path)
