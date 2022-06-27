@@ -1,6 +1,7 @@
 # pystrf
 Python based radio frequency satellite tracking
 
+**This project has been moved to https://gitlab.com/librespacefoundation/pystrf**
 
 ## Usage
 
